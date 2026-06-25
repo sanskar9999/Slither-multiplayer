@@ -1,0 +1,1235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>slither — P2P multiplayer</title>
+<style>
+  html,body{margin:0;height:100%;overflow:hidden;background:#0a0c11;font-family:ui-sans-serif,system-ui,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;-webkit-user-select:none;user-select:none}
+  #c{position:fixed;inset:0;display:block;width:100%;height:100%;cursor:crosshair}
+  .hud{position:fixed;color:#cfd6e4;text-shadow:0 1px 3px #000;pointer-events:none;z-index:5}
+  #length{left:14px;bottom:12px;font-size:15px}
+  #length b{color:#fff;font-size:20px}
+  #lb{right:14px;top:12px;font-size:12.5px;text-align:right;line-height:1.55;min-width:150px}
+  #lb .me{color:#ffd24a;font-weight:600}
+  #lb h3{margin:0 0 4px;font-size:11px;letter-spacing:.18em;color:#7e8aa0;font-weight:600}
+  #help{left:14px;top:12px;font-size:12px;color:#8a94a8}
+  #roomHud{top:12px;left:50%;transform:translateX(-50%);font-size:12px;color:#cfd6e4;background:rgba(14,18,28,.6);border:1px solid #232c3e;padding:6px 14px;border-radius:999px;letter-spacing:.04em}
+  #roomHud b{color:#5ef28c}
+  #overlay{position:fixed;inset:0;display:flex;align-items:center;justify-content:center;background:radial-gradient(ellipse at center,rgba(10,14,22,.55),rgba(6,8,12,.92));z-index:10;overflow:auto}
+  .panel{text-align:center;color:#e8edf6;padding:30px 40px;background:rgba(14,18,28,.85);border:1px solid #232c3e;border-radius:18px;box-shadow:0 20px 80px rgba(0,0,0,.6);max-width:440px;width:calc(100% - 32px)}
+  .panel h1{margin:0 0 6px;font-size:34px;letter-spacing:.02em;background:linear-gradient(90deg,#5ef28c,#3fd0ff,#b46bff,#ff6b9a);-webkit-background-clip:text;background-clip:text;color:transparent}
+  .panel p{margin:6px 0 16px;color:#9aa6bb;font-size:13.5px;line-height:1.5}
+  .panel .stat{font-size:15px;color:#cfd6e4;margin-bottom:14px}
+  .panel .stat b{color:#ffd24a;font-size:22px}
+  .field{margin:6px 0}
+  .field input{width:100%;box-sizing:border-box;background:#0c1018;border:1px solid #2a3346;color:#e8edf6;border-radius:10px;padding:11px 13px;font-size:15px;text-align:center;letter-spacing:.04em}
+  .field input:focus{outline:none;border-color:#3fd0ff}
+  .colors{display:flex;flex-wrap:wrap;gap:7px;justify-content:center;margin:12px 0 6px}
+  .swatch{width:24px;height:24px;border-radius:50%;cursor:pointer;border:2px solid transparent;box-shadow:0 1px 4px #000}
+  .swatch.sel{border-color:#fff;transform:scale(1.15)}
+  .btnrow{display:flex;gap:8px;margin-top:10px}
+  .panel button{flex:1;font-size:15px;font-weight:700;color:#08110c;background:linear-gradient(180deg,#6ef79a,#34c96b);border:0;border-radius:12px;padding:12px 14px;cursor:pointer}
+  .panel button.alt{background:linear-gradient(180deg,#5fb8ff,#2f7fe0);color:#04101f}
+  .panel button.ghost{background:transparent;border:1px solid #2f3a4f;color:#9aa6bb;font-weight:600;flex:0 0 auto;padding:12px 16px}
+  .panel button:hover{filter:brightness(1.1)}
+  .panel button:focus-visible{outline:3px solid #bdf7d2;outline-offset:2px}
+  .joinrow{display:flex;gap:8px;margin-top:8px}
+  .joinrow input{text-transform:uppercase;flex:1}
+  .joinrow button{flex:0 0 auto;padding:12px 18px}
+  .linkbtn{display:block;margin:14px auto 0;background:none;border:0;color:#7e8aa0;font-size:13px;cursor:pointer;text-decoration:underline}
+  .linkbtn:hover{color:#cfd6e4}
+  #netStatus{margin-top:12px;font-size:12.5px;min-height:18px;color:#8fbf9f}
+  #netStatus.err{color:#ff8a8a}
+  #netStatus.wait{color:#ffd24a}
+  .codebox{margin:14px 0 4px}
+  .codebox .code{font-size:30px;font-weight:800;letter-spacing:.4em;color:#5ef28c;background:#0c1018;border:1px dashed #2f5a44;border-radius:12px;padding:12px 0;cursor:pointer}
+  .codebox .hint{font-size:11.5px;color:#7e8aa0;margin-top:6px}
+  #deadPanel{display:none}
+  .secchk{display:flex;align-items:center;gap:7px;justify-content:center;font-size:12.5px;color:#9aa6bb;margin:8px 0 2px;cursor:pointer}
+  .secchk input{width:15px;height:15px;accent-color:#34c96b}
+  code{background:#0c1018;border:1px solid #232c3e;border-radius:6px;padding:1px 5px;font-size:11px;color:#8df091;word-break:break-all}
+  .hint{font-size:11.5px;color:#7e8aa0;line-height:1.5}
+  .spin{display:inline-block;width:12px;height:12px;border:2px solid #444c5e;border-top-color:#5ef28c;border-radius:50%;animation:sp 0.8s linear infinite;vertical-align:-2px;margin-right:6px}
+  @keyframes sp{to{transform:rotate(360deg)}}
+  @media (max-width:640px){#help,#roomHud{display:none}.panel{padding:24px 20px}.panel h1{font-size:26px}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div id="length" class="hud">Your length: <b id="lenVal">10</b></div>
+<div id="lb" class="hud"></div>
+<div id="roomHud" class="hud" style="display:none"></div>
+<div id="help" class="hud">Mouse to steer &nbsp;·&nbsp; Hold click / Space to boost</div>
+
+<div id="overlay">
+  <!-- START / LOBBY PANEL -->
+  <div class="panel" id="startPanel">
+    <h1>slither</h1>
+    <p>Peer-to-peer multiplayer over WebRTC. No game server — snakes connect directly to each other for the lowest possible lag. Pick a look, then <b>Create a room</b> and share the code.</p>
+
+    <div class="field"><input id="nameInput" placeholder="your name" maxlength="12" autocomplete="off"></div>
+    <div class="colors" id="colorPicker"></div>
+
+    <div class="btnrow">
+      <button id="createBtn">Create Room</button>
+    </div>
+    <div class="joinrow">
+      <input id="codeInput" placeholder="ROOM CODE" maxlength="6" autocomplete="off">
+      <button id="joinBtn" class="alt">Join</button>
+    </div>
+    <button id="soloBtn" class="linkbtn">play solo (offline)</button>
+    <button id="brokerToggle" class="linkbtn">broker: <span id="brokerLabel">public cloud</span> ▾</button>
+    <div id="brokerBox" style="display:none">
+      <div class="field"><input id="bhostInput" placeholder="broker host (e.g. myapp.onrender.com)" autocomplete="off"></div>
+      <div class="joinrow">
+        <input id="bportInput" placeholder="port" style="max-width:90px;text-transform:none" autocomplete="off">
+        <input id="bpathInput" placeholder="/app" style="text-transform:none" autocomplete="off">
+      </div>
+      <label class="secchk"><input type="checkbox" id="bsecInput" checked> secure (wss / https)</label>
+      <div class="btnrow">
+        <button id="saveBrokerBtn" class="alt">Save broker</button>
+        <button id="useCloudBtn" class="ghost">Use cloud</button>
+      </div>
+      <div class="hint" style="margin-top:8px">run your own: <code>npm i -g peer &amp;&amp; peerjs --port 9000 --path /app</code> — then enter its host here and reload.</div>
+    </div>
+    <div id="netStatus"></div>
+  </div>
+
+  <!-- WAITING / CODE PANEL (host) -->
+  <div class="panel" id="codePanel" style="display:none">
+    <h1>room ready</h1>
+    <p>Share this code with your friends. They pick <b>Join</b> and type it in. You can start playing right away — snakes appear as friends connect.</p>
+    <div class="codebox">
+      <div class="code" id="theCode">----</div>
+      <div class="hint" id="copyHint">click the code to copy</div>
+    </div>
+    <div class="btnrow">
+      <button id="enterGameBtn">Enter Game</button>
+      <button id="cancelHostBtn" class="ghost">Cancel</button>
+    </div>
+    <div id="netStatus2" class="wait"></div>
+  </div>
+
+  <!-- DEATH PANEL -->
+  <div class="panel" id="deadPanel">
+    <h1>You died</h1>
+    <div class="stat">Final length: <b id="finalLen">0</b></div>
+    <button id="againBtn">Play again</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* ============================================================
+   EXACT MECHANICS — constants & formulas taken from the
+   slither.io client spec (game1107249518.js reference document).
+   Simulation runs on a fixed 8 ms tick (vfr = 1 per tick).
+   ---- MULTIPLAYER (P2P / WebRTC + PeerJS) ----
+   * Full mesh: every peer connects directly to every other peer.
+   * Each client is authoritative over its OWN snake (zero input lag).
+   * Position streamed on an UNRELIABLE/UNORDERED data channel (UDP-like);
+     events (death / food) on a RELIABLE channel.
+   * Remote snakes are interpolated + extrapolated; collisions are
+     self-authoritative (you only kill yourself).
+   ============================================================ */
+const GRD   = 16384;          // game radius; world is a circle at (GRD,GRD)
+const SECTOR= 480;            // sector size
+const MSL   = 42;             // mean segment length (path point spacing)
+const NSP1  = 8.5, NSP2 = 1.0, NSP3 = 24.0;   // speed constants
+const MAMU  = 0.066;          // max turn base (radians / tick) for snakes
+const nsep  = 4.5;            // Render Separation (visual gap between drawn segments)
+const SPANGDV = 9.6;          // agility speed division factor
+const CST   = 0.43;           // segment follow damping constant
+const MSCPS = 411;            // max score->parts table size
+const TICK  = 8;              // ms per simulation tick (vfr = 1)
+const PI = Math.PI, TAU = PI*2;
+
+let fr = 0; // Global frame accumulator
+let vfrb = 0; // Global integer frames passed
+
+/* ---- p12 precomputed easing array ---- */
+const p12 = new Float32Array(250);
+for (let i = 0; i < 250; i++) { p12[i] = 1 - Math.pow(0.88, i); }
+
+/* ---- lfc and lfas precomputed easing array ---- */
+const lfc = 53;
+const lfas = new Float32Array(lfc);
+for (let i = 0; i < lfc; i++) { lfas[i] = 0.5 * (1 - Math.cos(Math.PI * (lfc - 1 - i) / (lfc - 1))); }
+
+/* ---- score -> (sct, fam) lookup tables (exact) ---- */
+const fmlts = [], fpsls = [];
+for (let i = 0; i <= MSCPS; i++) {
+  fmlts.push(Math.pow(1 - i / MSCPS, 2.25));
+  fpsls.push(i === 0 ? 0 : fpsls[i-1] + 1 / fmlts[i-1]);
+}
+function scoreToSctFam(score) {
+  const temp = (score + 5) / 15 + 1.0;
+  let lo = 1, hi = MSCPS - 1, sct = 1;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (fpsls[mid] <= temp) { sct = mid; lo = mid + 1; } else hi = mid - 1;
+  }
+  let fam = (temp - fpsls[sct]) * fmlts[sct];
+  if (fam < 0) fam = 0; else if (fam > 1) fam = 1;
+  return { sct, fam };
+}
+
+/* ---- snl (set new length) exact logic ---- */
+function snl(o) {
+  var orl = o.tl;
+  o.tl = o.sct + Math.min(1, o.fam);
+  var d = o.tl - orl;
+  if (d !== 0) {
+    var k = o.flpos;
+    for (var j = 0; j < lfc; j++) {
+      o.fls[k] -= d * lfas[j];
+      k++; if (k >= lfc) k = 0;
+    }
+    o.fl = o.fls[o.flpos];
+    o.fltg = lfc;
+  }
+}
+
+/* ---- smus separation multipliers (exact computation) ---- */
+const smus = new Float32Array(100);
+{ let n = 0, mv = 0;
+  for (let i = 0; i < 100; i++) {
+    if (i < 4) smus[i] = 1.0;
+    else { n++; if (n <= 4) mv = CST * n / 4; smus[i] = 1.0 - mv; }
+  }
+}
+
+function lerpAng(a, b, t){ let d = ((b - a) % TAU + TAU) % TAU; if (d > PI) d -= TAU; return a + d * t; }
+
+/* ===================== DETERMINISTIC FOOD ===================== *
+ * Each map sector generates an identical set of orbs on every client,
+ * so the world is consistent without a server.  Eating / drops are
+ * synced as lightweight events over the reliable channel.          */
+const FOOD_PER_SECTOR = 2, FOOD_CAP = 100000, FOOD_KEEP_R = 3000;
+const foods = new Map();      // sectorKey -> array of orbs
+const eatenFoods = [];        // active local eating animations
+const eatenFoodIds = new Set(); // orbs consumed by anyone (hidden everywhere)
+const pendingEaten = [];      // ids the local player ate -> broadcast
+const pendingDrops = [];      // food the local player dropped -> broadcast
+let foodCount = 0;
+let dropCounter = 0;
+const skey = (sx, sy) => sx * 4096 + sy;
+
+function hashSeed(sx, sy){ let h = (Math.imul(sx, 73856093) ^ Math.imul(sy, 19349663)) >>> 0; h = (h ^ (h >>> 13)) >>> 0; h = (Math.imul(h, 2654435761)) >>> 0; return h || 1; }
+function mulberry32(a){ return function(){ a = (a + 0x6D2B79F5) | 0; let t = Math.imul(a ^ (a >>> 15), 1 | a); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; }
+
+function makeFood(id, x, y, v, hue, dynamic){
+  const rad = v * 0.5 + 0.5;
+  const sz = rad * 10;
+  return { id, x, y, xx: x, yy: y, rx: x, ry: y, v, rad, sz, r: 3.4 + v * 1.5,
+    hue, seed: Math.random()*TAU, ang: Math.random()*TAU,
+    wsp: (2 * Math.random() - 1) * 0.0225, gfr: Math.random() * 64,
+    gr: 0.65 + 0.1 * sz, fr: 0, eaten: false, eaten_fr: 0, lut: 0, dynamic: !!dynamic };
+}
+
+// Deterministic ambient food for a sector (identical on every client).
+function genSector(sx, sy){
+  const k = skey(sx, sy);
+  if (foods.has(k)) return foods.get(k);
+  const rnd = mulberry32(hashSeed(sx, sy));
+  const arr = [];
+  for (let i = 0; i < FOOD_PER_SECTOR; i++){
+    if (eatenFoodIds.has(sx + '_' + sy + '_' + i)) continue;
+    const x = sx*SECTOR + rnd()*SECTOR;
+    const y = sy*SECTOR + rnd()*SECTOR;
+    if (Math.hypot(x - GRD, y - GRD) > GRD - 20) continue;
+    const v = 1 + Math.floor(Math.pow(rnd(), 2) * 5);
+    const hue = (rnd()*360)|0;
+    arr.push(makeFood(sx + '_' + sy + '_' + i, x, y, v, hue, false));
+  }
+  foods.set(k, arr);
+  foodCount += arr.length;
+  return arr;
+}
+
+// Dynamic food (boost-shed drops / death drops). Owner generates exact
+// positions and broadcasts them so every client shows the same drops.
+function spawnDynamicFood(x, y, v, hue, id){
+  if (foodCount >= FOOD_CAP) return;
+  if (eatenFoodIds.has(id)) return;
+  const sx = Math.floor(x / SECTOR), sy = Math.floor(y / SECTOR);
+  const k = skey(sx, sy);
+  let arr = foods.get(k); if (!arr) { arr = []; foods.set(k, arr); }
+  arr.push(makeFood(id, x, y, v, hue, true));
+  foodCount++;
+}
+function dropId(){ return (Net.myId || 'solo') + 'xD' + (dropCounter++); }
+
+function updateFoods(vfr){
+  const p = world.player;
+  const vxx = p ? (p.xx + p.fx + p.fvx || p.xx) : GRD;
+  const vyy = p ? (p.yy + p.fy + p.fvy || p.yy) : GRD;
+  const W_scaled = (W || 1920)/gsc, H_scaled = (H || 1080)/gsc;
+  const s0x = Math.floor((vxx - W_scaled/2)/SECTOR)-1, s1x = Math.floor((vxx + W_scaled/2)/SECTOR)+1;
+  const s0y = Math.floor((vyy - H_scaled/2)/SECTOR)-1, s1y = Math.floor((vyy + H_scaled/2)/SECTOR)+1;
+  for (let sx = s0x; sx <= s1x; sx++) for (let sy = s0y; sy <= s1y; sy++){
+    const arr = foods.get(skey(sx, sy));
+    if (!arr) continue;
+    for (let i = 0; i < arr.length; i++){
+      const f = arr[i];
+      if (f.lut === world.tickN) continue;
+      if (eatenFoodIds.has(f.id) && !f.eaten) continue;
+      f.lut = world.tickN;
+      f.gfr += vfr * f.gr;
+      if (f.fr < 1){ f.fr += vfr * 0.015; if (f.fr > 1) f.fr = 1; }
+      if (!f.eaten){ f.rx = f.x; f.ry = f.y; }
+    }
+  }
+}
+
+function maintainFood(cx, cy){
+  const s0x = Math.floor((cx - FOOD_KEEP_R)/SECTOR), s1x = Math.floor((cx + FOOD_KEEP_R)/SECTOR);
+  const s0y = Math.floor((cy - FOOD_KEEP_R)/SECTOR), s1y = Math.floor((cy + FOOD_KEEP_R)/SECTOR);
+  for (let sx = s0x; sx <= s1x; sx++) for (let sy = s0y; sy <= s1y; sy++){
+    const mx = (sx + .5)*SECTOR, my = (sy + .5)*SECTOR;
+    if (Math.hypot(mx - cx, my - cy) > FOOD_KEEP_R) continue;
+    genSector(sx, sy);
+  }
+}
+
+function eatAround(s){
+  const pullR = 63.0 * s.sc, pullR2 = pullR * pullR;
+  const s0x = Math.floor((s.x - pullR)/SECTOR), s1x = Math.floor((s.x + pullR)/SECTOR);
+  const s0y = Math.floor((s.y - pullR)/SECTOR), s1y = Math.floor((s.y + pullR)/SECTOR);
+  for (let sx = s0x; sx <= s1x; sx++) for (let sy = s0y; sy <= s1y; sy++){
+    const arr = foods.get(skey(sx, sy));
+    if (!arr) continue;
+    for (let i = arr.length - 1; i >= 0; i--){
+      const f = arr[i];
+      if (f.eaten || eatenFoodIds.has(f.id)) continue;
+      const dx = f.x - s.x, dy = f.y - s.y;
+      if (dx*dx + dy*dy <= pullR2){
+        f.eaten = true; f.eaten_by = s; f.eaten_fr = 0;
+        f.xx = f.x; f.yy = f.y; f.rx = f.x; f.ry = f.y; f.rad = 1.0;
+        s.score += f.v;
+        eatenFoodIds.add(f.id);
+        if (s === world.player) pendingEaten.push(f.id);
+        eatenFoods.push({ f, arr });
+      }
+    }
+  }
+}
+
+function updateEatenFoods(vfr){
+  for (let i = eatenFoods.length - 1; i >= 0; i--){
+    const { f, arr } = eatenFoods[i];
+    f.eaten_fr += vfr / 41;
+    const o = f.eaten_by;
+    if (f.eaten_fr >= 1 || !o || o.dead){
+      const idx = arr.indexOf(f);
+      if (idx !== -1){ arr.splice(idx, 1); foodCount--; }
+      eatenFoods.splice(i, 1);
+    } else {
+      const k = f.eaten_fr * f.eaten_fr;
+      f.rad = 1.0 - f.eaten_fr * k;
+      const mouthDist = (43 - k * 24) * (1 - k) * o.sc;
+      f.rx = f.xx + (o.x + Math.cos(o.ang) * mouthDist - f.xx) * k;
+      f.ry = f.yy + (o.y + Math.sin(o.ang) * mouthDist - f.yy) * k;
+    }
+  }
+}
+
+/* ============================ SNAKE ============================ */
+const PALETTE = [
+  ['#56d65b','#8df091'],['#3fa0ff','#8cc8ff'],['#ff5e5e','#ff9d9d'],
+  ['#c46bff','#e0b0ff'],['#ffb02e','#ffd98c'],['#2ee6c8','#9cf5e6'],
+  ['#ff6bd6','#ffb0ea'],['#e6e62e','#f5f59c'],['#ff8c42','#ffc6a0'],
+  ['#7d8cff','#bcc4ff'],['#8b5a2b','#b58a58'],['#eef1f6','#ffffff'],
+  ['#ff6b6b','#ffb3b3'],['#ffd700','#ffea80']
+];
+
+class Snake {
+  constructor(x, y, ang, colorIdx, name, startScore = 10) {
+    this.x = x; this.y = y; this.xx = x; this.yy = y;
+    this.fx = 0; this.fy = 0; this.fvx = 0; this.fvy = 0;
+    this.ang = ang; this.wang = ang; this.ehang = ang; this.wehang = ang; this.edir = 0;
+    this.dir = 0;
+    this.score = startScore;
+    this.tsp = NSP1 + NSP2; this.sp = this.tsp;
+    this.chl = 0; this.bdist = 0;
+    this.wantBoost = false; this.boost = false; this.boostTime = 0;
+    this.dead = false; this.dead_amt = 0;
+    this.name = name; this.ci = colorIdx;
+    this.fls = new Float32Array(lfc); this.flpos = 0; this.fl = 0; this.fltg = 0;
+    const r = scoreToSctFam(this.score);
+    this.sct = r.sct; this.fam = r.fam; this.tl = this.sct + Math.min(1, this.fam);
+    this.updateSize();
+    this.pts = [];
+    const n = this.targetPts();
+    for (let i = n; i >= 1; i--)
+      this.pts.push({ x: x - Math.cos(ang)*MSL*i, y: y - Math.sin(ang)*MSL*i,
+        fxs: new Float32Array(lfc), fys: new Float32Array(lfc), fpos: 0, ftg: 0, fx: 0, fy: 0 });
+  }
+  updateSize() {
+    const r = scoreToSctFam(this.score);
+    this.sct = r.sct; this.fam = r.fam;
+    this.sc  = Math.min(6.0, 1.0 + (this.sct - 2) / 106);
+    this.ssp = NSP1 + NSP2 * this.sc;
+    this.fsp = this.ssp + 0.1;
+    this.wsep = 6.0 * this.sc;
+    const mwsep = nsep / gsc;
+    if (this.wsep < mwsep) this.wsep = mwsep;
+    snl(this);
+    if (this.sep === undefined) this.sep = this.wsep;
+  }
+  getScore(){ const sct = Math.min(MSCPS, this.sct); return Math.floor((fpsls[sct] + this.fam / fmlts[sct] - 1) * 15 - 5); }
+  targetPts(){ return Math.max(3, Math.ceil(this.tl + this.fl) + 2); }
+
+  addHeadPt() {
+    this.pts.push({ x: this.x, y: this.y, fxs: new Float32Array(lfc), fys: new Float32Array(lfc), fpos: 0, ftg: 0, fx: 0, fy: 0 });
+    if (this.pts.length > this.targetPts()) this.pts.shift();
+    const len = this.pts.length, k = len - 3;
+    if (k >= 1) {
+      let lmpo = this.pts[k]; let n = 0; let mv = 0;
+      for (let m = k - 1; m >= 0; m--) {
+        const mpo = this.pts[m]; n++;
+        const ox = mpo.x, oy = mpo.y;
+        if (n <= 4) mv = CST * n / 4;
+        mpo.x += (lmpo.x - mpo.x) * mv; mpo.y += (lmpo.y - mpo.y) * mv;
+        const dx = mpo.x - ox, dy = mpo.y - oy;
+        let k2 = mpo.fpos;
+        for (let j = 0; j < lfc; j++){ mpo.fxs[k2] -= dx * lfas[j]; mpo.fys[k2] -= dy * lfas[j]; k2++; if (k2 >= lfc) k2 = 0; }
+        mpo.fx = mpo.fxs[mpo.fpos]; mpo.fy = mpo.fys[mpo.fpos]; mpo.ftg = lfc;
+        lmpo = mpo;
+      }
+    }
+  }
+
+  tick(vfr) {
+    if (this.dead){ if (this.dead_amt < 1){ this.dead_amt += vfr * 0.02; if (this.dead_amt > 1) this.dead_amt = 1; } return; }
+    this.boost = this.wantBoost && this.score > 10;
+    if (this.boost){ this.boostTime += vfr; this.sp = Math.min(44, NSP3 + this.boostTime * 0.08); }
+    else { this.boostTime = 0; this.sp = this.ssp; }
+    if (this.tsp < this.sp){ this.tsp += (this.sp - this.tsp) * 0.1 + 0.0001; if (this.tsp > this.sp) this.tsp = this.sp; }
+    else if (this.tsp > this.sp){ this.tsp += (this.sp - this.tsp) * 0.3 - 0.0001; if (this.tsp < this.sp) this.tsp = this.sp; }
+    const spang = Math.min(1.0, this.tsp / SPANGDV);
+    const scang = 0.13 + 0.87 * Math.pow((7.0 - this.sc) / 6.0, 2);
+    const mang  = MAMU * vfr * scang * spang;
+    let tang = (this.wang - this.ang) % TAU; if (tang < 0) tang += TAU; if (tang > PI) tang -= TAU;
+    if (tang < 0) this.dir = 1; else if (tang > 0) this.dir = 2; else this.dir = 0;
+    if (this.dir === 1){
+      this.ang -= mang; this.ang = (this.ang % TAU + TAU) % TAU;
+      let vang = (this.wang - this.ang) % TAU; if (vang < 0) vang += TAU; if (vang > PI) vang -= TAU;
+      if (vang > 0){ this.ang = this.wang; this.dir = 0; }
+    } else if (this.dir === 2){
+      this.ang += mang; this.ang = (this.ang % TAU + TAU) % TAU;
+      let vang = (this.wang - this.ang) % TAU; if (vang < 0) vang += TAU; if (vang > PI) vang -= TAU;
+      if (vang < 0){ this.ang = this.wang; this.dir = 0; }
+    } else { this.ang = this.wang; }
+    let dist = (this.sp * vfr) / 4; if (dist > MSL) dist = MSL;
+    this.x += Math.cos(this.ang) * dist; this.y += Math.sin(this.ang) * dist;
+    this.xx = this.x; this.yy = this.y;
+    if (Math.hypot(this.x - GRD, this.y - GRD) > GRD) { this.die(); return; }
+    this.chl += dist / MSL;
+    while (this.chl >= 1) { this.chl -= 1; this.addHeadPt(); }
+    if (this.boost){
+      this.score -= 0.12 * vfr * (this.sp / NSP3);
+      this.bdist += dist;
+      const shedAt = 84 * this.sc;
+      while (this.bdist >= shedAt){
+        this.bdist -= shedAt;
+        const t = this.pts[0] || this;
+        const v = Math.random() < .5 ? 1 : 2;
+        const dx = (Math.random()-.5)*8, dy = (Math.random()-.5)*8;
+        const hue = (Math.random()*360)|0;
+        const id = dropId();
+        spawnDynamicFood(t.x + dx, t.y + dy, v, hue, id);
+        if (this === world.player) pendingDrops.push({ x: t.x + dx, y: t.y + dy, v, hue, id });
+      }
+      if (this.score <= 10) { this.score = 10; this.boost = false; }
+    } else this.bdist = 0;
+    eatAround(this);
+    if (this.fltg > 0){
+      let k = vfrb; if (k > this.fltg) k = this.fltg; this.fltg -= k;
+      for (let qq = 0; qq < k; qq++){ this.fl = this.fls[this.flpos]; this.fls[this.flpos] = 0; this.flpos++; if (this.flpos >= lfc) this.flpos = 0; }
+    } else if (this.fltg === 0){ this.fltg = -1; this.fl = 0; }
+    for (let j = this.pts.length - 1; j >= 0; j--){
+      const po = this.pts[j];
+      if (po.ftg > 0){
+        if (vfrb > 0){ let k = vfrb; if (k > po.ftg) k = po.ftg; po.ftg -= k;
+          for (let qq = 0; qq < k; qq++){ po.fx = po.fxs[po.fpos]; po.fy = po.fys[po.fpos]; po.fxs[po.fpos] = 0; po.fys[po.fpos] = 0; po.fpos++; if (po.fpos >= lfc) po.fpos = 0; } }
+      } else if (po.ftg === 0){ po.ftg = -1; po.fx = 0; po.fy = 0; }
+    }
+    this.updateSize();
+    const tp = this.targetPts();
+    while (this.pts.length < tp) { const t = this.pts[0]; this.pts.unshift({ x: t.x, y: t.y, fxs: new Float32Array(lfc), fys: new Float32Array(lfc), fpos: 0, ftg: 0, fx: 0, fy: 0 }); }
+    while (this.pts.length > tp) this.pts.shift();
+  }
+
+  die() {
+    if (this.dead) return;
+    this.dead = true;
+    const drops = [];
+    const total = 0.8 * this.score;
+    const n = Math.max(1, this.pts.length); const per = total / n;
+    for (const p of this.pts){
+      let rem = per;
+      while (rem > 0.5){
+        const v = Math.min(5, Math.max(1, Math.round(Math.min(rem, 1 + Math.random()*4))));
+        const dx = (Math.random()-.5)*30, dy = (Math.random()-.5)*30;
+        const hue = (Math.random()*360)|0;
+        const id = dropId();
+        spawnDynamicFood(p.x + dx, p.y + dy, v, hue, id);
+        drops.push({ x: p.x + dx, y: p.y + dy, v, hue, id });
+        rem -= v;
+      }
+    }
+    if (Net.connected && this === world.player) Net.broadcastEvent({ type: 'death', id: Net.myId, drops });
+    onPlayerDeath();
+  }
+}
+
+/* ============================ WORLD ============================ */
+const world = { snakes: [], player: null, tickN: 0, running: false };
+const remotes = new Map(); // peerId -> interpolated remote snake state
+
+function randSpawnNear(cx, cy, rMin, rMax){
+  for (let i = 0; i < 20; i++){
+    const a = Math.random()*TAU, r = rMin + Math.random()*(rMax - rMin);
+    const x = cx + Math.cos(a)*r, y = cy + Math.sin(a)*r;
+    if (Math.hypot(x - GRD, y - GRD) < GRD - 2000) return { x, y };
+  }
+  return { x: GRD, y: GRD };
+}
+
+function startGame(){
+  world.snakes.length = 0; eatenFoods.length = 0; world.tickN = 0;
+  // NOTE: we keep deterministic food & drops across respawns so the world persists.
+  const a0 = Math.random()*TAU;
+  const p0 = randSpawnNear(GRD, GRD, 0, 4000);
+  world.player = new Snake(p0.x, p0.y, a0, selColor, selName || 'you', 10);
+  world.snakes.push(world.player);
+  maintainFood(world.player.x, world.player.y);
+  view_xx = world.player.x; view_yy = world.player.y;
+  gsc = (.64285 + .514285714 / Math.max(1, (world.player.sct + 16) / 36)) / 1.5;
+  world.running = true;
+  if (Net.connected) Net.announceSpawn();
+}
+
+function stepWorld(vfr){
+  const oldTickN = Math.floor(world.tickN);
+  world.tickN += vfr;
+  const newTickN = Math.floor(world.tickN);
+  const p = world.player;
+  for (let i = world.snakes.length - 1; i >= 0; i--){
+    const s = world.snakes[i]; s.tick(vfr);
+    if (s.dead && s.dead_amt >= 1) world.snakes.splice(i, 1);
+  }
+  updateFoods(vfr);
+  updateEatenFoods(vfr);
+  if (Math.floor(newTickN / 32) > Math.floor(oldTickN / 32) && p && !p.dead) maintainFood(p.x, p.y);
+}
+
+/* ===================== REMOTE SNAKES (interp) ===================== */
+function recomputeSize(rs){
+  const r = scoreToSctFam(rs.score);
+  rs.sct = r.sct; rs.fam = r.fam;
+  rs.sc = Math.min(6.0, 1.0 + (rs.sct - 2) / 106);
+  rs.tl = rs.sct + Math.min(1, rs.fam);
+  rs.wsep = Math.max(6.0 * rs.sc, nsep / gsc);
+  rs.ssp = NSP1 + NSP2 * rs.sc;
+  rs.fsp = rs.ssp + 0.1;
+  if (rs.sep == null || rs.sep < rs.wsep * 0.4) rs.sep = rs.wsep;
+}
+function createRemote(id, info){
+  return { id, remote: true, name: (info && info.name) || 'snake', ci: (info && info.color != null) ? info.color : (Math.random()*PALETTE.length)|0,
+    x: GRD, y: GRD, tx: GRD, ty: GRD, ang: 0, tang: 0, ehang: 0, tehang: 0,
+    score: 10, sct: 1, fam: 0, sc: 1, ssp: NSP1+NSP2, sp: NSP1+NSP2, tsp: NSP1+NSP2, fsp: NSP1+NSP2+0.1,
+    boost: false, dead: false, dead_amt: 0, tl: 2, fl: 0, sep: 6, wsep: 6, wang: 0, wehang: 0, edir: 0,
+    curPts: [], tgtPts: [], lastUpdate: performance.now(), _samples: null };
+}
+function ensureRemote(id, info){
+  if (id === Net.myId) return null;
+  let rs = remotes.get(id);
+  if (!rs){ rs = createRemote(id, info); remotes.set(id, rs); }
+  else if (info){ if (info.name) rs.name = info.name; if (info.color != null) rs.ci = info.color; }
+  return rs;
+}
+function applyRemotePos(pkt){
+  const rs = ensureRemote(pkt.id, null);
+  if (!rs) return;
+  rs.tx = pkt.x; rs.ty = pkt.y; rs.tang = pkt.ang; rs.tehang = pkt.ehang != null ? pkt.ehang : pkt.ang;
+  rs.score = pkt.score; recomputeSize(rs);
+  rs.boost = !!pkt.boost;
+  rs.sp = rs.boost ? NSP3 : rs.ssp; rs.tsp = rs.sp;
+  if (pkt.dead && !rs.dead) rs.dead = true;
+  if (pkt.pts){ rs.tgtPts = pkt.pts; rs.lastUpdate = performance.now(); }
+}
+function updateRemotes(dt, now){
+  for (const rs of remotes.values()){
+    if (rs.dead){ if (rs.dead_amt < 1){ rs.dead_amt += dt * 0.0025; if (rs.dead_amt > 1) rs.dead_amt = 1; } }
+    const k = 1 - Math.pow(0.0009, dt / 1000); // ~snappy smoothing that hides jitter
+    rs.x += (rs.tx - rs.x) * k; rs.y += (rs.ty - rs.y) * k;
+    rs.ang = lerpAng(rs.ang, rs.tang, k); rs.ehang = lerpAng(rs.ehang, rs.tehang, k);
+    rs.wang = rs.ang;
+    if (rs.tgtPts && rs.tgtPts.length){
+      if (rs.curPts.length !== rs.tgtPts.length){ rs.curPts = rs.tgtPts.slice(); }
+      else for (let i = 0; i < rs.curPts.length; i++){ rs.curPts[i] += (rs.tgtPts[i] - rs.curPts[i]) * k; }
+    }
+    // mild head extrapolation when packets are late, so motion never freezes
+    const stale = now - rs.lastUpdate;
+    if (stale > 90 && !rs.dead){
+      const ext = Math.min(stale - 90, 400) / 1000 * (rs.boost ? NSP3 : rs.ssp) * 0.5;
+      rs.x += Math.cos(rs.tang) * ext; rs.y += Math.sin(rs.tang) * ext;
+    }
+    rs._samples = [{ x: rs.x, y: rs.y }];
+    for (let i = 0; i < rs.curPts.length; i += 2) rs._samples.push({ x: rs.curPts[i], y: rs.curPts[i+1] });
+  }
+}
+
+/* ===================== COLLISIONS (self-authoritative) ===================== */
+function segDistSq(px, py, ax, ay, bx, by){
+  const dx = bx - ax, dy = by - ay; const l2 = dx*dx + dy*dy;
+  let t = l2 ? ((px-ax)*dx + (py-ay)*dy) / l2 : 0; t = t < 0 ? 0 : (t > 1 ? 1 : t);
+  const cx = ax + t*dx, cy = ay + t*dy; const ex = px - cx, ey = py - cy; return ex*ex + ey*ey;
+}
+function checkCollisions(){
+  const me = world.player; if (!me || me.dead) return;
+  const hr = 14.5 * me.sc * 0.5;
+  for (const rs of remotes.values()){
+    if (rs.dead) continue;
+    const s = rs._samples; if (!s || s.length < 2) continue;
+    const rr = (14.5 * rs.sc * 0.6) + hr; const rr2 = rr * rr;
+    for (let i = 0; i < s.length - 1; i++){
+      if (segDistSq(me.x, me.y, s[i].x, s[i].y, s[i+1].x, s[i+1].y) < rr2){ me.die(); return; }
+    }
+  }
+}
+
+/* ============================ INPUT ============================ */
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+let W = 0, H = 0, DPR = 1;
+function resize(){
+  DPR = Math.min(2, window.devicePixelRatio || 1);
+  W = window.innerWidth; H = window.innerHeight;
+  canvas.width = W * DPR; canvas.height = H * DPR;
+  canvas.style.width = W + 'px'; canvas.style.height = H + 'px';
+}
+window.addEventListener('resize', resize); resize();
+
+const mouse = { x: 0, y: 0, down: false };
+window.addEventListener('mousemove', e => { mouse.x = e.clientX; mouse.y = e.clientY; });
+window.addEventListener('mousedown', () => mouse.down = true);
+window.addEventListener('mouseup',   () => mouse.down = false);
+window.addEventListener('keydown', e => { if (e.code === 'Space'){ mouse.down = true; e.preventDefault(); } });
+window.addEventListener('keyup',   e => { if (e.code === 'Space') mouse.down = false; });
+window.addEventListener('touchstart', e => { const t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; if (e.touches.length > 1) mouse.down = true; }, {passive:true});
+window.addEventListener('touchmove',  e => { const t = e.touches[0]; mouse.x = t.clientX; mouse.y = t.clientY; }, {passive:true});
+window.addEventListener('touchend',   e => { if (e.touches.length <= 1) mouse.down = false; }, {passive:true});
+
+function applyPlayerInput(){
+  const p = world.player; if (!p || p.dead) return;
+  const ym = mouse.y - H/2, xm = mouse.x - W/2;
+  p.wang = (Math.atan2(ym, xm) % TAU + TAU) % TAU;
+  p.wantBoost = mouse.down;
+}
+
+/* ============================ RENDER ============================ */
+let gsc = 0.6, dgsc = 0.6, view_xx = GRD, view_yy = GRD;
+
+const bgTile = document.createElement('canvas');
+{
+  const s = 56, h = Math.sqrt(3)/2 * s;
+  bgTile.width = s*3; bgTile.height = Math.round(h*2);
+  const g = bgTile.getContext('2d');
+  g.fillStyle = '#10131b'; g.fillRect(0,0,bgTile.width,bgTile.height);
+  g.strokeStyle = 'rgba(110,130,170,0.10)'; g.lineWidth = 1.4;
+  const hex = (cx, cy) => { g.beginPath(); for (let i = 0; i < 6; i++){ const a = PI/180 * (60*i); const x = cx + Math.cos(a)*s*0.58, y = cy + Math.sin(a)*s*0.58; i ? g.lineTo(x,y) : g.moveTo(x,y); } g.closePath(); g.stroke(); };
+  hex(0,0); hex(s*1.5,h); hex(s*3,0); hex(0,h*2); hex(s*3,h*2);
+}
+let bgPattern = null;
+
+const spriteCache = new Map();
+function getFoodSprites(hue){
+  const k = (hue/24|0)*24;
+  if (spriteCache.has(k)) return spriteCache.get(k);
+  const ofi = document.createElement("canvas"); ofi.width = ofi.height = 48;
+  const ctxO = ofi.getContext("2d"); ctxO.shadowBlur = 6; ctxO.shadowOffsetY = 3; ctxO.shadowColor = "#000000";
+  ctxO.beginPath(); ctxO.arc(24, 24, 14, 0, Math.PI * 2); ctxO.fill();
+  const g2fi = document.createElement("canvas"); g2fi.width = g2fi.height = 156;
+  const ctxG2 = g2fi.getContext("2d");
+  const g2 = ctxG2.createRadialGradient(78, 78, 1, 78, 78, 75.2);
+  g2.addColorStop(0, `hsla(${k}, 100%, 50%, 1)`); g2.addColorStop(1, `hsla(${k}, 100%, 50%, 0)`);
+  ctxG2.fillStyle = g2; ctxG2.fillRect(0, 0, 156, 156);
+  const fi = document.createElement("canvas"); fi.width = fi.height = 32;
+  const ctxF = fi.getContext("2d");
+  const gf = ctxF.createRadialGradient(16, 16, 0, 16, 16, 12.5);
+  gf.addColorStop(0, `hsla(${k}, 100%, 80%, 1)`); gf.addColorStop(.99, `hsla(${k}, 100%, 60%, 0.2)`); gf.addColorStop(1, `hsla(${k}, 100%, 60%, 0)`);
+  ctxF.fillStyle = gf; ctxF.fillRect(0, 0, 32, 32);
+  const sprites = { ofi, g2fi, fi }; spriteCache.set(k, sprites); return sprites;
+}
+const kdmc = document.createElement('canvas'); kdmc.width = 32; kdmc.height = 32;
+{ const g = kdmc.getContext('2d'); const grad = g.createRadialGradient(16, 16, 1, 16, 16, 15);
+  grad.addColorStop(0, 'rgba(255, 153, 102, 1)'); grad.addColorStop(1, 'rgba(255, 153, 102, 0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 32, 32); }
+
+function buildDrawSamples(s){
+  const path = [{ x: s.x, y: s.y }];
+  for (let i = s.pts.length - 1; i >= 0; i--){ const p = s.pts[i]; path.push({ x: p.x + p.fx, y: p.y + p.fy }); }
+  if (path.length < 2) return path;
+  const L = path.length, steps = 16;
+  const smoothPath = [{ x: path[0].x, y: path[0].y }];
+  const subSegLens = [], subSegWeights = [];
+  for (let i = 0; i < L - 1; i++){
+    let P0, P1, P2;
+    if (i === 0){ P0 = path[0]; P1 = path[0]; P2 = { x: (path[0].x + path[1].x) / 2, y: (path[0].y + path[1].y) / 2 }; }
+    else if (i === L - 2){ P0 = { x: (path[i - 1].x + path[i].x) / 2, y: (path[i - 1].y + path[i].y) / 2 }; P1 = path[i]; P2 = path[i + 1]; }
+    else { P0 = { x: (path[i - 1].x + path[i].x) / 2, y: (path[i - 1].y + path[i].y) / 2 }; P1 = path[i]; P2 = { x: (path[i].x + path[i + 1].x) / 2, y: (path[i].y + path[i + 1].y) / 2 }; }
+    const w = (i === 0 ? s.chl : 1) / steps;
+    let prevPt = smoothPath[smoothPath.length - 1];
+    for (let st = 1; st <= steps; st++){
+      const t = st / steps, mt = 1 - t, mt2 = mt * mt, t2 = t * t, dmt = 2 * mt * t;
+      const nextPt = { x: mt2 * P0.x + dmt * P1.x + t2 * P2.x, y: mt2 * P0.y + dmt * P1.y + t2 * P2.y };
+      smoothPath.push(nextPt);
+      const l = Math.hypot(nextPt.x - prevPt.x, nextPt.y - prevPt.y);
+      subSegLens.push(l); subSegWeights.push(w); prevPt = nextPt;
+    }
+  }
+  let maxLen = 0; let remainingSegs = s.tl + s.fl;
+  for (let i = 0; i < subSegLens.length; i++){
+    const w = subSegWeights[i], l = subSegLens[i]; if (w === 0) continue;
+    if (remainingSegs >= w){ maxLen += l; remainingSegs -= w; }
+    else { maxLen += l * (remainingSegs / w); remainingSegs = 0; break; }
+  }
+  if (maxLen < 1) maxLen = 1;
+  const out = [{ x: smoothPath[0].x, y: smoothPath[0].y }];
+  let seg = 1, segPos = 0, walked = 0, idx = 0;
+  let ax = smoothPath[0].x, ay = smoothPath[0].y;
+  while (seg < smoothPath.length && walked < maxLen && out.length < 1200){
+    const need = s.sep * smus[Math.min(99, idx)];
+    let remaining = need; let limitReached = false;
+    if (walked + remaining >= maxLen){ remaining = maxLen - walked; limitReached = true; }
+    while (seg < smoothPath.length){
+      const bx = smoothPath[seg].x, by = smoothPath[seg].y;
+      const segLen = Math.hypot(bx - ax, by - ay) - segPos;
+      if (segLen >= remaining){ const full = Math.hypot(bx - ax, by - ay); const tt = full ? (segPos + remaining) / full : 1; out.push({ x: ax + (bx - ax)*tt, y: ay + (by - ay)*tt }); segPos += remaining; walked += remaining; remaining = 0; break; }
+      else { remaining -= segLen; walked += segLen; ax = bx; ay = by; segPos = 0; seg++; }
+    }
+    if (remaining > 0 || limitReached) break;
+    idx++;
+  }
+  return out;
+}
+
+function drawSnake(s, t, vfr){
+  if (vfr === undefined) vfr = 1;
+  if (s.sep !== s.wsep){
+    if (s.sep < s.wsep){ s.sep += 0.0035; if (s.sep >= s.wsep) s.sep = s.wsep; }
+    else if (s.sep > s.wsep){ s.sep -= 0.0035; if (s.sep <= s.wsep) s.sep = s.wsep; }
+  }
+  const samples = s._samples ? s._samples : buildDrawSamples(s);
+  if (!s.remote){
+    if (samples.length >= 2) s.wehang = Math.atan2(s.y - samples[1].y, s.x - samples[1].x); else s.wehang = s.ang;
+    if (!s.dead){
+      if (s.ehang !== s.wehang){ let vang = (s.wehang - s.ehang) % TAU; if (vang < 0) vang += TAU; if (vang > PI) vang -= TAU; if (vang < 0) s.edir = 1; else if (vang > 0) s.edir = 2; }
+      if (s.edir === 1 || s.edir === 2){
+        let tang = (s.wehang - s.ehang) % TAU; if (tang < 0) tang += TAU; if (tang > PI) tang -= TAU;
+        s.ehang += tang * p12[vfrb]; s.ehang = (s.ehang % TAU + TAU) % TAU;
+        let vang = (s.wehang - s.ehang) % TAU; if (vang < 0) vang += TAU; if (vang > PI) vang -= TAU;
+        if ((s.edir === 1 && vang > 0) || (s.edir === 2 && vang < 0)){ s.ehang = s.wehang; s.edir = 0; }
+      }
+    }
+  } else { s.wehang = s.ehang; }
+
+  const [c1, c2] = PALETTE[s.ci % PALETTE.length];
+  const R = 14.5 * s.sc;
+  ctx.save();
+  ctx.globalAlpha = 1 - s.dead_amt;
+  if (s.sp > s.fsp && samples.length > 1){
+    ctx.save();
+    ctx.beginPath(); ctx.moveTo(samples[0].x, samples[0].y);
+    for (let i = 1; i < samples.length; i++) ctx.lineTo(samples[i].x, samples[i].y);
+    ctx.lineCap = ctx.lineJoin = 'round';
+    ctx.strokeStyle = c2; ctx.globalAlpha = 0.55 * (1 - s.dead_amt);
+    ctx.shadowColor = c1; ctx.shadowBlur = 34 * s.sc; ctx.lineWidth = R * 2.25; ctx.stroke();
+    ctx.restore();
+  }
+  for (let i = samples.length - 1; i >= 0; i--){
+    const p = samples[i];
+    const band = ((i / 7) | 0) % 2 === 0;
+    ctx.fillStyle = band ? c1 : shade(c1, -14);
+    ctx.beginPath(); ctx.arc(p.x, p.y, R, 0, TAU); ctx.fill();
+    if (band && i % 7 === 3){ ctx.fillStyle = 'rgba(255,255,255,0.10)'; ctx.beginPath(); ctx.arc(p.x - R*0.2, p.y - R*0.25, R*0.55, 0, TAU); ctx.fill(); }
+  }
+  const ex = Math.cos(s.ehang), ey = Math.sin(s.ehang), px = -ey, py = ex;
+  const eo = 6.2 * s.sc, ef = 4.5 * s.sc, er = 4.6 * s.sc, pr = 2.2 * s.sc, la = s.wang;
+  for (const sgn of [-1, 1]){
+    const cx2 = s.x + ex*ef + px*eo*sgn, cy2 = s.y + ey*ef + py*eo*sgn;
+    ctx.fillStyle = '#fff'; ctx.beginPath(); ctx.arc(cx2, cy2, er, 0, TAU); ctx.fill();
+    ctx.fillStyle = '#15181f'; ctx.beginPath(); ctx.arc(cx2 + Math.cos(la)*er*0.42, cy2 + Math.sin(la)*er*0.42, pr, 0, TAU); ctx.fill();
+  }
+  if (s.name){
+    ctx.globalAlpha = 0.85 * (1 - s.dead_amt);
+    ctx.fillStyle = '#eef1f6'; ctx.font = (13 * Math.max(0.8, s.sc)) + 'px ui-sans-serif,system-ui,sans-serif';
+    ctx.textAlign = 'center'; ctx.fillText(s.name, s.x, s.y - R - 8);
+  }
+  ctx.restore();
+  if (s.dead){
+    ctx.save(); ctx.globalCompositeOperation = "lighter";
+    const falf = (.5 + .5 * Math.abs(Math.sin(5 * Math.PI * s.dead_amt))) * Math.sin(Math.PI * s.dead_amt);
+    ctx.globalAlpha = Math.max(0, Math.min(1, falf));
+    const d = 64 * s.sc;
+    for (let i = 0; i < samples.length; i++){ const p = samples[i]; ctx.drawImage(kdmc, p.x - d / 2, p.y - d / 2, d, d); }
+    ctx.restore();
+  }
+}
+function shade(hex, amt){
+  const n = parseInt(hex.slice(1), 16);
+  let r = (n>>16)+amt, g = ((n>>8)&255)+amt, b = (n&255)+amt;
+  r=Math.max(0,Math.min(255,r)); g=Math.max(0,Math.min(255,g)); b=Math.max(0,Math.min(255,b));
+  return `rgb(${r},${g},${b})`;
+}
+
+function render(now, vfr){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  ctx.fillStyle = '#0a0c11'; ctx.fillRect(0, 0, W, H);
+  const p = world.player;
+  if (p){
+    const base_dgsc = (.64285 + .514285714 / Math.max(1, (p.sct + 16) / 36)) / 1.5;
+    let boostZoomFactor = 1.0;
+    if (p.boostTime > 125){ const tSec = (p.boostTime - 125) * 0.008; const progress = Math.min(1.0, tSec / 2.0); const ease = 0.5 * (1.0 - Math.cos(progress * Math.PI)); boostZoomFactor = 1.0 + ease * 1.0; }
+    dgsc = base_dgsc / boostZoomFactor;
+    if (gsc != dgsc){ const diff = Math.abs(gsc - dgsc); const step = 2e-4 + diff * 0.05 * vfr;
+      if (gsc < dgsc){ gsc += step; if (gsc >= dgsc) gsc = dgsc; } else { gsc -= step; if (gsc <= dgsc) gsc = dgsc; } }
+    view_xx = p.xx + p.fx + p.fvx; view_yy = p.yy + p.fy + p.fvy;
+  }
+  ctx.translate(W/2, H/2); ctx.scale(gsc, gsc); ctx.translate(-view_xx, -view_yy);
+  const vw = W/gsc, vh = H/gsc, vx0 = view_xx - vw/2, vy0 = view_yy - vh/2;
+
+  if (!bgPattern) bgPattern = ctx.createPattern(bgTile, 'repeat');
+  ctx.fillStyle = bgPattern; ctx.fillRect(vx0, vy0, vw, vh);
+
+  ctx.save();
+  ctx.strokeStyle = '#b3122e'; ctx.lineWidth = 60; ctx.shadowColor = '#ff2050'; ctx.shadowBlur = 50;
+  ctx.beginPath(); ctx.arc(GRD, GRD, GRD + 30, 0, TAU); ctx.stroke();
+  ctx.restore();
+
+  const s0x = Math.floor(vx0/SECTOR)-1, s1x = Math.floor((vx0+vw)/SECTOR)+1;
+  const s0y = Math.floor(vy0/SECTOR)-1, s1y = Math.floor((vy0+vh)/SECTOR)+1;
+
+  ctx.save();
+  for (let sx = s0x; sx <= s1x; sx++) for (let sy = s0y; sy <= s1y; sy++){
+    const arr = foods.get(skey(sx, sy)); if (!arr) continue;
+    for (const f of arr){
+      if (eatenFoodIds.has(f.id) && !f.eaten) continue;
+      const sprites = getFoodSprites(f.hue);
+      const df = f.r * f.rad * 1.0;
+      ctx.globalAlpha = f.fr * 0.8; ctx.drawImage(sprites.ofi, f.rx - df/2, f.ry - df/2, df, df);
+    }
+  }
+  ctx.restore();
+
+  ctx.save(); ctx.globalCompositeOperation = "lighter";
+  for (let sx = s0x; sx <= s1x; sx++) for (let sy = s0y; sy <= s1y; sy++){
+    const arr = foods.get(skey(sx, sy)); if (!arr) continue;
+    for (const f of arr){
+      if (eatenFoodIds.has(f.id) && !f.eaten) continue;
+      const sprites = getFoodSprites(f.hue);
+      const rx = f.rx, ry = f.ry, xx = f.eaten ? f.rx : f.xx, yy = f.eaten ? f.ry : f.yy;
+      const df = f.r * f.rad * 1.0, dg = df * 3.5, a = f.fr * 0.15;
+      ctx.globalAlpha = a; ctx.drawImage(sprites.g2fi, xx - dg/2, yy - dg/2, dg, dg);
+      ctx.globalAlpha = a * (0.5 + 0.5 * Math.cos(f.gfr/13)); ctx.drawImage(sprites.g2fi, xx - dg/2, yy - dg/2, dg, dg);
+      ctx.globalAlpha = f.fr; ctx.drawImage(sprites.fi, rx - df/2, ry - df/2, df, df);
+      ctx.globalAlpha = f.fr * (0.5 + 0.5 * Math.cos(f.gfr/13)); ctx.drawImage(sprites.fi, rx - df/2, ry - df/2, df, df);
+    }
+  }
+  ctx.restore();
+
+  const drawList = [];
+  if (world.player && (!world.player.dead || world.player.dead_amt < 1)) drawList.push(world.player);
+  for (const rs of remotes.values()) if (!rs.dead || rs.dead_amt < 1) drawList.push(rs);
+  for (const s of drawList) drawSnake(s, now, vfr);
+
+  // minimap
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+  const mr = 52, mx = W - mr - 16, my = H - mr - 16;
+  ctx.globalAlpha = 0.85; ctx.fillStyle = 'rgba(10,14,22,0.6)';
+  ctx.beginPath(); ctx.arc(mx, my, mr, 0, TAU); ctx.fill();
+  ctx.strokeStyle = 'rgba(140,160,200,0.5)'; ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.arc(mx, my, mr, 0, TAU); ctx.stroke();
+  for (const rs of remotes.values()){ if (rs.dead) continue; ctx.fillStyle = PALETTE[rs.ci % PALETTE.length][0]; ctx.beginPath(); ctx.arc(mx + (rs.x - GRD)/GRD*mr, my + (rs.y - GRD)/GRD*mr, 3, 0, TAU); ctx.fill(); }
+  if (p && !p.dead){ ctx.fillStyle = PALETTE[p.ci][0]; ctx.beginPath(); ctx.arc(mx + (p.x - GRD)/GRD*mr, my + (p.y - GRD)/GRD*mr, 3.5, 0, TAU); ctx.fill(); }
+  ctx.globalAlpha = 1;
+}
+
+/* ============================ HUD ============================ */
+const lenVal = document.getElementById('lenVal');
+const lbEl = document.getElementById('lb');
+const roomHud = document.getElementById('roomHud');
+let hudT = 0;
+function updateHUD(now){
+  if (now - hudT < 200) return; hudT = now;
+  const p = world.player;
+  if (p) lenVal.textContent = p.getScore();
+  const ranked = [];
+  if (p) ranked.push({ name: selName || 'you', score: p.getScore(), me: true, ci: p.ci });
+  for (const rs of remotes.values()) if (!rs.dead) ranked.push({ name: rs.name, score: Math.floor(rs.score), me: false, ci: rs.ci });
+  ranked.sort((a, b) => b.score - a.score);
+  let html = '<h3>LEADERBOARD</h3>';
+  for (let i = 0; i < Math.min(8, ranked.length); i++){
+    const r = ranked[i]; html += `<div class="${r.me ? 'me' : ''}">#${i+1} ${escapeHtml(r.name)} — ${r.score}</div>`;
+  }
+  lbEl.innerHTML = html;
+  if (Net.connected){ roomHud.style.display = 'block'; roomHud.innerHTML = `room <b>${Net.roomCode || ''}</b> · ${1 + remotes.size} player${remotes.size ? 's' : ''}`; }
+}
+function escapeHtml(s){ return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ============================ LOOP ============================ */
+const SEND_MS = 45; // ~22 Hz position broadcast
+let last = performance.now(), lastSend = 0;
+function frame(now){
+  requestAnimationFrame(frame);
+  let dt = now - last; last = now; if (dt > 100) dt = 100;
+  const vfr = dt / 8.0;
+  if (world.running){
+    applyPlayerInput();
+    const lfr = fr; fr += vfr; vfrb = Math.floor(fr) - Math.floor(lfr);
+    stepWorld(vfr);
+    updateRemotes(dt, now);
+    if (world.player && !world.player.dead) checkCollisions();
+  } else {
+    const lfr = fr; fr += vfr; vfrb = Math.floor(fr) - Math.floor(lfr);
+    updateRemotes(dt, now);
+  }
+  if (Net.connected && now - lastSend >= SEND_MS){ lastSend = now; netSendTick(); }
+  render(now, vfr);
+  updateHUD(now);
+}
+requestAnimationFrame(frame);
+
+// Pack the local snake's body as a compact, decimated flat array [x0,y0,x1,y1,...].
+function packBody(s){
+  const full = buildDrawSamples(s);
+  const body = full.slice(1);
+  const MAXP = 46;
+  let pts;
+  if (body.length <= MAXP){ pts = body; }
+  else { const step = body.length / MAXP; pts = []; for (let i = 0; i < MAXP; i++) pts.push(body[Math.floor(i*step)]); }
+  const arr = new Array(pts.length * 2);
+  for (let i = 0; i < pts.length; i++){ arr[i*2] = Math.round(pts[i].x); arr[i*2+1] = Math.round(pts[i].y); }
+  return arr;
+}
+function netSendTick(){
+  const p = world.player;
+  if (p){
+    const pkt = { t: 'p', id: Net.myId, seq: Net.seq++, x: Math.round(p.x), y: Math.round(p.y),
+      ang: +(p.wang.toFixed(3)), ehang: +(p.ehang.toFixed(3)), score: Math.round(p.score*10)/10,
+      boost: !!p.boost, dead: !!p.dead, pts: packBody(p) };
+    Net.broadcastPos(pkt);
+  }
+  if (pendingEaten.length){ Net.broadcastEvent({ type: 'foodEaten', ids: pendingEaten.slice() }); pendingEaten.length = 0; }
+  if (pendingDrops.length){ Net.broadcastEvent({ type: 'foodDrop', drops: pendingDrops.slice() }); pendingDrops.length = 0; }
+}
+
+/* ===================== NETWORKING (PeerJS / WebRTC) ===================== */
+const PEERJS_CDN = ['https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js','https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js'];
+
+/* ---- Signaling broker resolution ----
+   The broker is ONLY used once to introduce peers; after that all game
+   traffic is direct peer-to-peer (no lag added by the broker).
+   Default = the free public PeerJS cloud (0.peerjs.com), which needs no setup
+   but can be flaky. For a rock-solid game with friends, run your own broker:
+       npm i -g peer && peerjs --port 9000 --path /app
+   then open the lobby "broker settings", OR append to the URL:
+       ?bhost=YOURHOST&bport=9000&bpath=/app&bsecure=0
+   The choice is saved to localStorage so you only set it once.            */
+function readBrokerConfig(){
+  try{
+    const p = new URLSearchParams(location.search);
+    const host = p.get('bhost');
+    if (host) return { cloud:false, host, port: parseInt(p.get('bport')||'443',10)||443, path: p.get('bpath')||'/app', secure: (p.get('bsecure')||'1')!=='0' };
+    const saved = localStorage.getItem('slither_broker');
+    if (saved){ const j = JSON.parse(saved); if (j && j.host) return Object.assign({ port:443, path:'/app', secure:true, cloud:false }, j); }
+  }catch(e){}
+  return { cloud:true }; // public PeerJS cloud
+}
+const BROKER = readBrokerConfig();
+function describeBroker(){ return BROKER.cloud ? 'public cloud' : (BROKER.host + (BROKER.port===443?'':':'+BROKER.port) + BROKER.path); }
+
+const Net = {
+  peer: null, myId: null, myName: 'snake', myColor: 0,
+  isHost: false, roomCode: null, connected: false, enabled: false,
+  seq: 0, conns: new Map(), initiatedTo: new Set(), gotRoster: false,
+  // Send to every connected peer.
+  broadcastPos(pkt){ for (const c of Net.conns.values()) if (c.pos && c.pos.open){ try{ if ((c.pos.bufferSize||0) < 1048576) c.pos.send(pkt); }catch(e){} } },
+  broadcastEvent(evt){ for (const c of Net.conns.values()) if (c.evt && c.evt.open){ try{ c.evt.send(evt); }catch(e){} } },
+  sendEventTo(peerId, evt){ const c = Net.conns.get(peerId); if (c && c.evt && c.evt.open){ try{ c.evt.send(evt); }catch(e){} } },
+  announceSpawn(){ Net.broadcastEvent({ type:'hello', name: Net.myName, color: Net.myColor, score: 10 }); },
+};
+
+function loadPeerJS(cb){
+  let i = 0;
+  function go(){
+    if (i >= PEERJS_CDN.length){ cb(false); return; }
+    const s = document.createElement('script');
+    s.src = PEERJS_CDN[i++];
+    s.onload = () => { if (typeof window.Peer === 'function') cb(true); else go(); };
+    s.onerror = go;
+    document.head.appendChild(s);
+  }
+  go();
+}
+
+function genCode(){
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let c = ''; for (let i = 0; i < 4; i++) c += chars[(Math.random()*chars.length)|0];
+  return c;
+}
+function randToken(){ const chars = 'abcdefghijklmnopqrstuvwxyz0123456789'; let c=''; for (let i=0;i<6;i++) c += chars[(Math.random()*chars.length)|0]; return c; }
+function peerOptions(id){
+  const o = { debug: 1, config: { iceServers: [
+    { urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun1.l.google.com:19302' }, { urls: 'stun:global.stun.twilio.com:3478' }
+  ]}};
+  if (!BROKER.cloud){ o.host = BROKER.host; o.port = BROKER.port; o.path = BROKER.path; o.secure = BROKER.secure; }
+  return id ? new window.Peer(id, o) : new window.Peer(o);
+}
+// Auto-reconnect the signaling socket if it drops (does not affect live P2P links).
+function attachReconnect(peer, statusEl){
+  peer.on('disconnected', () => {
+    setStatus(statusEl, 'reconnecting to broker…', 'wait');
+    setTimeout(() => { try{ peer.reconnect(); }catch(e){} }, 1200);
+  });
+}
+
+function hostRoom(code){
+  Net.isHost = true; Net.roomCode = code; Net.myName = selName; Net.myColor = selColor;
+  const tryId = (c, attempt) => {
+    const peer = peerOptions('s2' + c.toLowerCase());
+    Net.peer = peer;
+    peer.on('open', id => {
+      Net.myId = id; Net.connected = true; Net.enabled = true;
+      setStatus(netStatus2, 'waiting for friends…', 'wait');
+    });
+    peer.on('connection', conn => setupConn(conn, conn.label || 'evt'));
+    attachReconnect(peer, netStatus2);
+    peer.on('error', err => {
+      if (err.type === 'unavailable-id' && attempt < 4){ tryDestroy(); hostRoom(genCode()); return; }
+      handlePeerError(err);
+    });
+  };
+  tryId(code, 0);
+}
+function joinRoom(code){
+  Net.isHost = false; Net.roomCode = code; Net.myName = selName; Net.myColor = selColor; Net.gotRoster = false;
+  const peer = peerOptions('s2' + code.toLowerCase() + 'g' + randToken());
+  Net.peer = peer;
+  peer.on('open', id => {
+    Net.myId = id; Net.connected = true; Net.enabled = true;
+    setStatus(netStatus, 'connecting to room…', 'wait');
+    connectToPeer('s2' + code.toLowerCase()); // connect to host
+  });
+  peer.on('connection', conn => setupConn(conn, conn.label || 'evt'));
+  attachReconnect(peer, netStatus);
+  peer.on('error', err => {
+    if (err.type === 'peer-unavailable'){ setStatus(netStatus, 'room not found — check the code', 'err'); tryDestroy(); }
+    else handlePeerError(err);
+  });
+}
+function tryDestroy(){ if (Net.peer){ try{ Net.peer.destroy(); }catch(e){} Net.peer = null; } Net.connected = false; }
+
+function connectToPeer(peerId){
+  if (!Net.peer || !peerId || peerId === Net.myId) return;
+  if (Net.initiatedTo.has(peerId)) return;
+  const ex = Net.conns.get(peerId); if (ex && ex.pos && ex.evt) return;
+  Net.initiatedTo.add(peerId);
+  try{
+    const pos = Net.peer.connect(peerId, { label:'pos', reliable:false, serialization:'binary', metadata:{ name:Net.myName, color:Net.myColor } });
+    setupConn(pos, 'pos');
+    const evt = Net.peer.connect(peerId, { label:'evt', reliable:true, serialization:'binary', metadata:{ name:Net.myName, color:Net.myColor } });
+    setupConn(evt, 'evt');
+  } catch(e){ console.warn('connectToPeer failed', e); }
+}
+function setupConn(conn, label){
+  const store = () => { const c = Net.conns.get(conn.peer) || {}; c[label] = conn; Net.conns.set(conn.peer, c); };
+  conn.on('open', () => {
+    store();
+    if (label === 'evt'){
+      Net.sendEventTo(conn.peer, { type:'hello', name: Net.myName, color: Net.myColor, score: world.player ? Math.round(world.player.score*10)/10 : 10 });
+      if (!Net.isHost && conn.peer === ('s2' + (Net.roomCode||'').toLowerCase())) Net.sendEventTo(conn.peer, { type:'needRoster' });
+      maybeGuestReady();
+    }
+  });
+  conn.on('data', d => onConnData(conn, label, d));
+  conn.on('close', () => onConnClose(conn));
+  conn.on('error', () => onConnClose(conn));
+  if (conn.open) store();
+}
+function onConnClose(conn){
+  const c = Net.conns.get(conn.peer); if (!c) return;
+  if (c.pos === conn) c.pos = null; if (c.evt === conn) c.evt = null;
+  if (!c.pos && !c.evt){ Net.conns.delete(conn.peer); removeRemote(conn.peer); }
+}
+function onConnData(conn, label, d){
+  if (!d) return;
+  if (label === 'pos'){ if (d.t === 'p') applyRemotePos(d); return; }
+  // evt
+  switch (d.type){
+    case 'hello': {
+      const rs = ensureRemote(conn.peer, { name: d.name, color: d.color });
+      if (rs){ rs.dead = false; rs.dead_amt = 0; rs.score = d.score || 10; recomputeSize(rs); }
+      // make sure they know us too (covers incoming connections we didn't initiate)
+      if (!Net.initiatedTo.has(conn.peer)) Net.sendEventTo(conn.peer, { type:'hello', name: Net.myName, color: Net.myColor, score: world.player ? Math.round(world.player.score*10)/10 : 10 });
+      maybeGuestReady();
+      break;
+    }
+    case 'needRoster': if (Net.isHost) sendRosterTo(conn.peer); break;
+    case 'roster': {
+      for (const p of (d.peers || [])){ ensureRemote(p.id, { name: p.name, color: p.color }); connectToPeer(p.id); }
+      Net.gotRoster = true; maybeGuestReady();
+      break;
+    }
+    case 'foodEaten': for (const id of (d.ids || [])) eatenFoodIds.add(id); break;
+    case 'foodDrop': for (const f of (d.drops || [])) spawnDynamicFood(f.x, f.y, f.v, f.hue, f.id); break;
+    case 'death': {
+      const rs = remotes.get(d.id); if (rs){ rs.dead = true; }
+      for (const f of (d.drops || [])) spawnDynamicFood(f.x, f.y, f.v, f.hue, f.id);
+      break;
+    }
+  }
+}
+function sendRosterTo(peerId){
+  const peers = [];
+  for (const id of Net.conns.keys()) if (id !== peerId && id !== Net.myId){ const rs = remotes.get(id); peers.push({ id, name: rs ? rs.name : 'snake', color: rs ? rs.ci : 0 }); }
+  Net.sendEventTo(peerId, { type:'roster', peers });
+}
+function removeRemote(id){ const rs = remotes.get(id); if (rs){ rs.dead = true; rs.dead_amt = 0.99; } }
+function maybeGuestReady(){
+  if (Net.isHost || Net._started) return;
+  // start playing as soon as we've exchanged a hello with the host (roster may follow)
+  if (Net.connected && remotes.size > 0 && !world.running){ /* don't auto-start; user clicked join */ }
+}
+function handlePeerError(err){
+  console.warn('peer error', err && err.type, err && err.message);
+  let msg = 'connection error';
+  if (err.type === 'browser-incompatible') msg = 'your browser does not support WebRTC';
+  else if (err.type === 'network' || err.type === 'server-error') msg = 'could not reach the broker — retrying…';
+  else if (err.type === 'unavailable-id') msg = 'id taken, retrying…';
+  setStatus(netStatus, msg, 'err');
+}
+
+/* ============================ UI ============================ */
+const overlay = document.getElementById('overlay');
+const startPanel = document.getElementById('startPanel');
+const codePanel = document.getElementById('codePanel');
+const deadPanel = document.getElementById('deadPanel');
+const netStatus = document.getElementById('netStatus');
+const netStatus2 = document.getElementById('netStatus2');
+const createBtn = document.getElementById('createBtn');
+const joinBtn = document.getElementById('joinBtn');
+const soloBtn = document.getElementById('soloBtn');
+const enterGameBtn = document.getElementById('enterGameBtn');
+const cancelHostBtn = document.getElementById('cancelHostBtn');
+const nameInput = document.getElementById('nameInput');
+const codeInput = document.getElementById('codeInput');
+const theCode = document.getElementById('theCode');
+const copyHint = document.getElementById('copyHint');
+const colorPicker = document.getElementById('colorPicker');
+
+let selName = 'player', selColor = (Math.random()*PALETTE.length)|0;
+(function initColors(){
+  for (let i = 0; i < PALETTE.length; i++){
+    const sw = document.createElement('div');
+    sw.className = 'swatch' + (i === selColor ? ' sel' : '');
+    sw.style.background = `linear-gradient(135deg, ${PALETTE[i][0]}, ${PALETTE[i][1]})`;
+    sw.addEventListener('click', () => { selColor = i; [...colorPicker.children].forEach((c, j) => c.classList.toggle('sel', j === i)); });
+    colorPicker.appendChild(sw);
+  }
+})();
+nameInput.value = 'player' + ((Math.random()*89+10)|0);
+nameInput.addEventListener('input', () => { selName = nameInput.value.trim().slice(0,12) || 'player'; });
+codeInput.addEventListener('input', () => { codeInput.value = codeInput.value.toUpperCase().replace(/[^A-Z0-9]/g,'').slice(0,6); });
+nameInput.dispatchEvent(new Event('input'));
+
+function setStatus(el, msg, cls){
+  if (!el) return;
+  el.innerHTML = (cls === 'wait' ? '<span class="spin"></span>' : '') + escapeHtml(msg);
+  el.className = cls || '';
+}
+
+loadPeerJS(ok => {
+  Net.enabled = ok;
+  if (ok) setStatus(netStatus, 'ready · broker: ' + describeBroker(), '');
+  else setStatus(netStatus, 'WebRTC lib failed to load — you can still play solo', 'err');
+});
+
+/* ---- broker settings UI ---- */
+const brokerToggle = document.getElementById('brokerToggle');
+const brokerBox = document.getElementById('brokerBox');
+const brokerLabel = document.getElementById('brokerLabel');
+const bhostInput = document.getElementById('bhostInput');
+const bportInput = document.getElementById('bportInput');
+const bpathInput = document.getElementById('bpathInput');
+const bsecInput = document.getElementById('bsecInput');
+brokerLabel.textContent = describeBroker();
+if (!BROKER.cloud){ bhostInput.value = BROKER.host; bportInput.value = BROKER.port; bpathInput.value = BROKER.path; bsecInput.checked = BROKER.secure; }
+brokerToggle.addEventListener('click', () => { brokerBox.style.display = brokerBox.style.display === 'none' ? 'block' : 'none'; });
+document.getElementById('saveBrokerBtn').addEventListener('click', () => {
+  const host = bhostInput.value.trim();
+  if (!host){ setStatus(netStatus, 'enter a broker host', 'err'); return; }
+  const cfg = { host, port: parseInt(bportInput.value || '443', 10) || 443, path: bpathInput.value.trim() || '/app', secure: bsecInput.checked };
+  try{ localStorage.setItem('slither_broker', JSON.stringify(cfg)); }catch(e){}
+  brokerLabel.textContent = host; setStatus(netStatus, 'broker saved — reload the page to apply', '');
+});
+document.getElementById('useCloudBtn').addEventListener('click', () => {
+  try{ localStorage.removeItem('slither_broker'); }catch(e){}
+  brokerLabel.textContent = 'public cloud'; setStatus(netStatus, 'using public cloud — reload to apply', '');
+});
+
+createBtn.addEventListener('click', () => {
+  if (!Net.enabled){ setStatus(netStatus, 'WebRTC not ready yet, wait a moment…', 'wait'); return; }
+  const code = genCode();
+  startPanel.style.display = 'none';
+  codePanel.style.display = 'block';
+  theCode.textContent = code;
+  hostRoom(code);
+});
+theCode.addEventListener('click', () => {
+  const text = theCode.textContent;
+  if (navigator.clipboard) navigator.clipboard.writeText(text).then(() => { copyHint.textContent = 'copied!'; setTimeout(() => copyHint.textContent = 'click the code to copy', 1200); });
+});
+enterGameBtn.addEventListener('click', () => {
+  overlay.style.display = 'none';
+  startGame();
+});
+cancelHostBtn.addEventListener('click', () => {
+  tryDestroy(); remotes.clear();
+  codePanel.style.display = 'none'; startPanel.style.display = 'block';
+  setStatus(netStatus, '', '');
+});
+joinBtn.addEventListener('click', () => {
+  if (!Net.enabled){ setStatus(netStatus, 'WebRTC not ready yet, wait a moment…', 'wait'); return; }
+  const code = codeInput.value.trim();
+  if (code.length < 3){ setStatus(netStatus, 'enter the room code', 'err'); return; }
+  joinRoom(code);
+  setStatus(netStatus, 'joining ' + code + '…', 'wait');
+  // Give the handshake a moment; start the game once we reach the host.
+  const joinDeadline = Date.now() + 12000;
+  const waitJoin = () => {
+    if (!Net.peer || !Net.connected){ setStatus(netStatus, 'could not reach the room', 'err'); return; }
+    if (remotes.size > 0 || Net.gotRoster){ overlay.style.display = 'none'; startGame(); return; }
+    if (Date.now() > joinDeadline){ setStatus(netStatus, 'timed out — is the host online & same broker?', 'err'); tryDestroy(); return; }
+    setTimeout(waitJoin, 150);
+  };
+  setTimeout(waitJoin, 200);
+});
+soloBtn.addEventListener('click', () => { overlay.style.display = 'none'; startGame(); });
+
+function onPlayerDeath(){
+  document.getElementById('finalLen').textContent = world.player ? world.player.getScore() : 0;
+  setTimeout(() => {
+    startPanel.style.display = 'none'; codePanel.style.display = 'none';
+    deadPanel.style.display = 'block'; overlay.style.display = 'flex';
+    world.running = false;
+  }, 600);
+}
+document.getElementById('againBtn').addEventListener('click', () => { overlay.style.display = 'none'; startGame(); });
+</script>
+</body>
+</html>
